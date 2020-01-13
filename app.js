@@ -3,16 +3,20 @@ const app = express()
 const puppeteer = require('puppeteer')
 const path = require('path')
 const fs = require('fs')
+const ejs = require('ejs')
 const port = 3000
-const folderUploads = 'uploads'
-const linkUploads = '/uploads'
+const folderUploads = 'uploads/img'
+const linkUploads = '/uploads/img'
 const pathUploads = path.join(__dirname, linkUploads);
 
+app.set('view engine', 'ejs');
 app.use(linkUploads, express.static(folderUploads));
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
-app.get('/', (req, res) => res.send('Hello World!'))
+app.get('/', (req, res) => {
+  res.render('index')
+})
 
-async function addTimeAndScreenShot(page, linkSaveImage) {
+async function addTimeAndScreenShot(page) {
     await page.evaluate(() => {
         const body = document.getElementsByTagName("body")[0];
 
@@ -49,7 +53,7 @@ async function addTimeAndScreenShot(page, linkSaveImage) {
         body.insertBefore(link, body.childNodes[0]);
     });
     await page.screenshot({
-        path: `.\\uploads\\` + linkSaveImage,
+        path: `./uploads/img/img-${(new Date()).getTime()}.jpg`,
         fullPage: true
     });
 }
@@ -58,69 +62,145 @@ async function submitAndWaitPageLoadFinish(page, button) {
     await Promise.all([
         button.click(),
         page.waitForNavigation({
-            waitUntil: 'load'
+            waitUntil: 'networkidle0'
         }),
     ]);
 }
 
-app.get('/tiki', (req, res) => {
-    (async () => {
-        res.send('Waiting...')
-        const browser = await puppeteer.launch();
-        const page = await browser.newPage();
-        await page.setViewport({
-            width: 1820,
-            height: 1170
-        });
-        await page.goto('https://alligator.io/')
-        await page.evaluate(() => {
-            const link = document.querySelector('[href="/react/typescript-with-react/"]');
-            link.style.cssText = `
-              border: 5px dashed red;`;
-        })
-        const image_1 = 'example-1.png'
-        const image_2 = 'example-2.png'
-        await addTimeAndScreenShot(page, image_1)
-        await submitAndWaitPageLoadFinish(page, await page.$('a[href="/react/typescript-with-react/"]'))
-        await addTimeAndScreenShot(page, image_2)
-        const fullLinkUploads = `${req.protocol}://${req.headers.host}${linkUploads}`;
+app.get('/alligator', (req, res) => {
+  (async() => {
+      const browser = await puppeteer.launch();
+      let page = await browser.newPage();
+      await page.setViewport({
+          width: 1820,
+          height: 1170
+      });
+      await page.goto('https://alligator.io/')
+      await page.evaluate(() => {
+          const link = document.querySelector('[href="/react/typescript-with-react/"]');
+          link.style.cssText = `
+            border: 5px dashed red;`;
+      })
+      await addTimeAndScreenShot(page)
+      await submitAndWaitPageLoadFinish(page, await page.$('a[href="/react/typescript-with-react/"]'))
+      await addTimeAndScreenShot(page)
+      const fullLinkUploads = `${req.protocol}://${req.headers.host}${linkUploads}`;
 
-        let fileName = []
-        fs.readdir(pathUploads, function (err, files) {
+      fs.readdir(pathUploads, async function(err, files) {
+          var fileName = []
+
           if (err) throw err
-            files.forEach(function (file) {
+          files.map((file) => {
               fileName.push(file)
           });
-        });
 
-        console.log(fileName)
-
-        // PDF
         let html = `
           <div class="container">
             <h2 class="text-center bold">AUTOMATICAL TEST</h2>
             <div class="row">
               <div class="col-lg-12">
-                <p class="img"><img src="${fullLinkUploads}/${image_1}" alt="${image_1}" /></p>
-                <p class="img"><img src="${fullLinkUploads}/${image_2}" alt="${image_2}" /></p>
+                ${fileName.map((file, key) => `<p><img src="${fullLinkUploads + '/' + file}" alt = "${file}" /></p>`).join('')}
               </div>
             </div>
           </div>
         `;
+        page = await browser.newPage();
         await page.setContent(html);
+
+        // PDF
         await page.addStyleTag({
-          url: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+            url: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
         })
-        await page.addStyleTag({content: `
-            html {-webkit-print-color-adjust: exact;}
-            h2 {color: #414141;}
-            `})
+        await page.addStyleTag({
+            content: `
+        html {-webkit-print-color-adjust: exact;}
+        h2 {color: #414141;}
+        `
+        })
         await page.pdf({
-            path: `uploads\\File.pdf`,
+            path: `uploads/File.pdf`,
             format: 'Tabloid',
-            margin: { top: "1cm", bottom: "1cm", left: "1cm", right: "1cm" },
-            printBackground : true,
+            margin: {
+                top: "1cm",
+                bottom: "1cm",
+                left: "1cm",
+                right: "1cm"
+            },
+            printBackground: true,
         })
-        await browser.close();
-    })();
+        await browser.close()
+        await res.redirect('back')
+      })
+  })();
+})
+
+app.get('/itviec', (req, res) => {
+  (async() => {
+      let browser = await puppeteer.launch({headless: false});
+      let page = await browser.newPage();
+
+      await page.setViewport({
+          width: 1820,
+          height: 1170
+      });
+      await page.goto('https://itviec.com/', {waitUntil: 'domcontentloaded'})
+      await page.evaluate(() => {
+          document.querySelector('.ui-autocomplete-input').value = 'PHP';
+      })
+
+      await submitAndWaitPageLoadFinish(page, await page.$('.search_button'))
+
+      const element = await page.$("h1");
+      const allJob = await page.evaluate(element => element.textContent, element)   
+
+      let jobs = await page.$$eval('#jobs .first-group .job .job__body .title a', async (links) => {
+        let jobs = []
+
+        links.map((link) => {
+          let item = [link.getAttribute('href'), link.textContent]
+          jobs.push(item)
+        })
+        return jobs; 
+      })   
+
+      //PDF
+        let html = `
+          <div class="container">
+            <h2 class="text-center bold">AUTOMATICAL TEST</h2>
+            <div class="row">
+              <div class="col-lg-12">
+                ${jobs.map((item, key) => `
+                  <p><a target="_blank" href="https://itviec.com/${item[0]}">${item[1]}</a></p>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+        page = await browser.newPage();
+        await page.setContent(html);
+
+        // PDF
+        await page.addStyleTag({
+            url: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+        })
+        await page.addStyleTag({
+            content: `
+        html {-webkit-print-color-adjust: exact;}
+        h2 {color: #414141;}
+        `
+        })
+        // await page.pdf({
+        //     path: `uploads/File.pdf`,
+        //     format: 'Tabloid',
+        //     margin: {
+        //         top: "1cm",
+        //         bottom: "1cm",
+        //         left: "1cm",
+        //         right: "1cm"
+        //     },
+        //     printBackground: true,
+        // })
+        // await browser.close()
+        // await res.redirect('back')   
+  })();
 })
