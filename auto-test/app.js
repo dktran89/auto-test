@@ -145,7 +145,7 @@ app.get('/itviec', (req, res) => {
       });
       await page.goto('https://itviec.com/', {waitUntil: 'domcontentloaded'})
       await page.evaluate(() => {
-          document.querySelector('.ui-autocomplete-input').value = 'PHP';
+          document.querySelector('.ui-autocomplete-input').value = 'tester';
       })
 
       await submitAndWaitPageLoadFinish(page, await page.$('.search_button'))
@@ -189,18 +189,18 @@ app.get('/itviec', (req, res) => {
         h2 {color: #414141;}
         `
         })
-        // await page.pdf({
-        //     path: `uploads/File.pdf`,
-        //     format: 'Tabloid',
-        //     margin: {
-        //         top: "1cm",
-        //         bottom: "1cm",
-        //         left: "1cm",
-        //         right: "1cm"
-        //     },
-        //     printBackground: true,
-        // })
-        // await browser.close()
-        // await res.redirect('back')   
+        await page.pdf({
+            path: `uploads/File.pdf`,
+            format: 'Tabloid',
+            margin: {
+                top: "1cm",
+                bottom: "1cm",
+                left: "1cm",
+                right: "1cm"
+            },
+            printBackground: true,
+        })
+        await browser.close()
+        await res.redirect('back')   
   })();
 })

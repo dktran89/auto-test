@@ -19,3 +19,4 @@ COPY ./auto-test /usr/src/app
 CMD [ "node" ]
 
 RUN chmod +x startup.sh
+RUN npm install -g nodemon
